@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Set variables
         run: |
-          echo "RELEASE_NAME=Released on $(date +'%Y-%m-%d %H:%M')" >> $GITHUB_ENV
+          echo "RELEASE_NAME=Released on $(date -d '+8 hours' +'%Y-%m-%d %H:%M')" >> $GITHUB_ENV
           echo "ads=https://raw.githubusercontent.com/privacy-protection-tools/anti-AD/master/anti-ad-domains.txt" >> $GITHUB_ENV
           echo "private1=https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/private" >> $GITHUB_ENV
           echo "private2=https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Lan/Lan.list" >> $GITHUB_ENV
@@ -60,6 +60,13 @@ jobs:
           repository: cokebar/gfwlist2dnsmasq
           path: gfwlist2dnsmasq
 
+      - name: Checkout DustinWin/clash-geoip
+        uses: actions/checkout@v4
+        with:
+          repository: DustinWin/clash-geoip
+          ref: release
+          path: clash-geoip
+
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
@@ -68,7 +75,7 @@ jobs:
 
       - name: Generate ads
         run: |
-          mkdir -p ./community/mydata ./tmp ./publish
+          mkdir -p ./community/mydata ./tmp ./publish ./domains
           curl -sSL ${ads} | grep -v '#' | sed '/^\s*$/d' > ./community/mydata/ads
 
       - name: Generate private
@@ -86,11 +93,16 @@ jobs:
           
       - name: Generate microsoft-cn
         run: |
-          count=$(curl -sSL ${microsoft_cn} | grep 'include:' | wc -l)
+          count1=$(curl -sSL ${microsoft_cn} | grep 'include:' | wc -l)
           curl -sSL ${microsoft_cn} | grep -v '#' | grep '@cn' | sed 's/ *@cn$//g' > ./tmp/temp-microsoft-cn.txt
-          for((i=0;i<count;i++));do
-            archs=$(curl -sSL ${microsoft_cn} | grep 'include:' | sed 's/^include://g' | sed -n "$((i+1))p")
-            curl -sSL "https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/$archs" | grep -v '#' | grep '@cn' | sed 's/ *@cn$//g' >> ./tmp/temp-microsoft-cn.txt
+          for((i=0;i<count1;i++)); do
+            archs1=$(curl -sSL ${microsoft_cn} | grep 'include:' | sed 's/^include://g' | sed -n "$((i+1))p")
+            count2=$(curl -sSL "https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/$archs1" | grep 'include:' | wc -l)
+            curl -sSL "https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/$archs1" | grep -v '#' | grep '@cn' | sed 's/ *@cn$//g' >> ./tmp/temp-microsoft-cn.txt
+            for((j=0;j<count2;j++)); do
+              archs2=$(curl -sSL "https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/$archs1" | grep 'include:' | sed 's/^include://g' | sed -n "$((j+1))p")
+              curl -sSL "https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/$archs2" | grep -v '#' | grep '@cn' | sed 's/ *@cn$//g' >> ./tmp/temp-microsoft-cn.txt
+            done
           done
           sort --ignore-case -u ./tmp/temp-microsoft-cn.txt > ./community/mydata/microsoft-cn
 
@@ -104,11 +116,16 @@ jobs:
 
       - name: Generate games-cn
         run: |
-          count=$(curl -sSL ${games_cn1} | grep 'include:' | wc -l)
+          count1=$(curl -sSL ${games_cn1} | grep 'include:' | wc -l)
           curl -sSL ${games_cn1} | grep -v '#' | grep '@cn' | sed 's/ *@cn$//g' > ./tmp/temp-games-cn.txt
-          for((i=0;i<count;i++));do
-            archs=$(curl -sSL ${games_cn1} | grep 'include:' | sed 's/^include://g' | sed -n "$((i+1))p")
-            curl -sSL "https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/$archs" | grep -v '#' | grep '@cn' | sed 's/ *@cn$//g' >> ./tmp/temp-games-cn.txt
+          for((i=0;i<count1;i++)); do
+            archs1=$(curl -sSL ${games_cn1} | grep 'include:' | sed 's/^include://g' | sed -n "$((i+1))p")
+            count2=$(curl -sSL "https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/$archs1" | grep 'include:' | wc -l)
+            curl -sSL "https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/$archs1" | grep -v '#' | grep '@cn' | sed 's/ *@cn$//g' >> ./tmp/temp-games-cn.txt
+            for((j=0;j<count2;j++)); do
+              archs2=$(curl -sSL "https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/$archs1" | grep 'include:' | sed 's/^include://g' | sed -n "$((j+1))p")
+              curl -sSL "https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/$archs2" | grep -v '#' | grep '@cn' | sed 's/ *@cn$//g' >> ./tmp/temp-games-cn.txt
+            done
           done
           curl -sSL ${games_cn2} | grep -v '#' | grep 'DOMAIN' | sed 's/^DOMAIN,/full:/g' | sed 's/^DOMAIN-SUFFIX,//g' | sed 's/^DOMAIN-KEYWORD,/keyword:/g' >> ./tmp/temp-games-cn.txt
           curl -sSL ${games_cn3} | grep -v '#' | grep 'DOMAIN' | sed 's/^DOMAIN,/full:/g' | sed 's/^DOMAIN-SUFFIX,//g' | sed 's/^DOMAIN-KEYWORD,/keyword:/g' >> ./tmp/temp-games-cn.txt
@@ -162,7 +179,7 @@ jobs:
 
       - name: Generate proxy
         run: |
-          cd gfwlist2dnsmasq || exit 1
+          cd ./gfwlist2dnsmasq || exit 1
           chmod +x ./gfwlist2dnsmasq.sh
           ./gfwlist2dnsmasq.sh -l -o ../tmp/temp-proxy.txt
           curl -sSL ${proxy} | grep -v '#' | grep 'DOMAIN' | sed 's/^DOMAIN,/full:/g' | sed 's/^DOMAIN-SUFFIX,//g' | sed 's/^DOMAIN-KEYWORD,/keyword:/g' >> ../tmp/temp-proxy.txt
@@ -171,6 +188,13 @@ jobs:
       - name: Generate cn
         run: |
           curl -sSL ${cn} | grep -Ev '#|google' | grep 'DOMAIN' | sed 's/^DOMAIN,/full:/g' | sed 's/^DOMAIN-SUFFIX,//g' | sed 's/^DOMAIN-KEYWORD,/keyword:/g' > ./community/mydata/cn
+
+      - name: copy `mydata` to `domains` and rename
+        run: |
+          cd ./community/mydata || exit 1
+          for file in $(ls); do
+            cp -f "${file}" "../../domains/${file}.txt"
+          done
 
       - name: Generate geosite-all.dat
         run: |
@@ -290,40 +314,25 @@ jobs:
 
       - name: Get geoip relative files
         run: |
-          wget -P ./publish https://github.com/DustinWin/clash-geoip/releases/download/latest/geoip-all.dat
-          wget -P ./publish https://github.com/DustinWin/clash-geoip/releases/download/latest/geoip.dat
-          wget -P ./publish https://github.com/DustinWin/clash-geoip/releases/download/latest/geoip-lite.dat
-          wget -P ./publish https://github.com/DustinWin/clash-geoip/releases/download/latest/geoip-all.metadb
-          wget -P ./publish https://github.com/DustinWin/clash-geoip/releases/download/latest/geoip.metadb
-          wget -P ./publish https://github.com/DustinWin/clash-geoip/releases/download/latest/geoip-lite.metadb
-          wget -P ./publish https://github.com/DustinWin/clash-geoip/releases/download/latest/geoip-all.db
-          wget -P ./publish https://github.com/DustinWin/clash-geoip/releases/download/latest/geoip.db
-          wget -P ./publish https://github.com/DustinWin/clash-geoip/releases/download/latest/geoip-lite.db
+          cp -f ./clash-geoip/*.mmdb ./clash-geoip/*.dat ./clash-geoip/*.metadb ./clash-geoip/*.db ./publish
 
       - name: Build db and metadb file
         env:
           NO_SKIP: true
         run: |
           go install -trimpath -ldflags="-s -w -buildid=" github.com/metacubex/geo/cmd/geo@master
-          geo convert site -i v2ray -o sing -f geosite-all.db ./community/geosite-all.dat
-          geo convert site -i v2ray -o sing -f geosite-all-lite.db ./community/geosite-all-lite.dat
-          geo convert site -i v2ray -o sing -f geosite.db ./community/geosite.dat
-          geo convert site -i v2ray -o sing -f geosite-lite.db ./community/geosite-lite.dat
+          cd ./community || exit 1
+          for file in $(ls *.dat | sed 's/\..*//g'); do
+            geo convert site -i v2ray -o sing -f "./${file}.db" "./${file}.dat"
+          done
 
       - name: Move files
         run: |
-          wget -P ./publish https://github.com/DustinWin/clash-geoip/releases/download/latest/Country-all.mmdb
-          wget -P ./publish https://github.com/DustinWin/clash-geoip/releases/download/latest/Country.mmdb
-          wget -P ./publish https://github.com/DustinWin/clash-geoip/releases/download/latest/Country-lite.mmdb
-          install -Dp ./community/geosite-all.dat ./publish
-          install -Dp ./community/geosite-all-lite.dat ./publish
-          install -Dp ./community/geosite.dat ./publish
-          install -Dp ./community/geosite-lite.dat ./publish
-          install -Dp ./geosite-all.db ./publish
-          install -Dp ./geosite-all-lite.db ./publish
-          install -Dp ./geosite.db ./publish
-          install -Dp ./geosite-lite.db ./publish
-          cd ./publish || exit 1
+          cd ./community || exit 1
+          for file in $(ls *.dat *.db); do
+            install -Dp "./${file}" ../publish
+          done
+          cd ../publish || exit 1
 
       - name: Release and upload assets
         uses: svenstaro/upload-release-action@v2
@@ -346,9 +355,25 @@ jobs:
           git remote add origin "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
           git push -f -u origin release
 
+      - name: Git push assets to "domains" branch
+        run: |
+          cd ./domains || exit 1
+          git init
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b domains
+          git add .
+          git commit -m "${{ env.RELEASE_NAME }}"
+          git remote add origin "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
+          git push -f -u origin domains
+
       - name: Purge jsDelivr CDN
         run: |
           cd ./publish || exit 1
           for file in $(ls); do
             curl -i "https://purge.jsdelivr.net/gh/${{ github.repository }}@release/${file}"
+          done
+          cd ../domains || exit 1
+          for file in $(ls); do
+            curl -i "https://purge.jsdelivr.net/gh/${{ github.repository }}@domains/${file}"
           done
